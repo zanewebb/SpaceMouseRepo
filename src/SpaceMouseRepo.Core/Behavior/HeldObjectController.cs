@@ -42,6 +42,9 @@ public sealed class HeldObjectController
 
         if (rx != 0f || ry != 0f || rz != 0f)
         {
+            // CreateFromYawPitchRoll(yaw,pitch,roll) = rotations about (Y,X,Z).
+            // SpaceMouse convention: Rx=pitch(X), Ry=yaw(Y), Rz=roll(Z). delta * accRot
+            // composes the new puck input on top of the accumulator in world frame.
             var delta = Quaternion.CreateFromYawPitchRoll(ry, rx, rz);
             _accRot = Quaternion.Normalize(delta * _accRot);
         }

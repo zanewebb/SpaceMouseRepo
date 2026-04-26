@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using BepInEx.Logging;
 using HarmonyLib;
 using SpaceMouseRepo.Core.Behavior;
@@ -91,7 +92,7 @@ public static class GrabPatches
             _targetRotField.SetValue(grabbed, addRot * rot);
             _targetPosField.SetValue(grabbed, pos + addPos);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not ThreadAbortException)
         {
             _log.LogError($"GrabPatches.PostUpdate threw, disabling for session: {e}");
             _disabled = true;

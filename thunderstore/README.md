@@ -20,7 +20,7 @@ Edit `BepInEx/config/com.zanewebb.spacemouse_repo.cfg` after first run. Key sett
 - `MaxLocalOffsetCm` — radius limit on accumulated local offset (default 15 cm).
 - `PrecisionScale` — gain reduction when precision mode is active (default 0.2 = 5× finer).
 - `Button1` / `Button2` — actions: `ResetRotation`, `TogglePrecisionMode`, or `None`.
-- `ExtraProductIds` — comma-separated hex IDs if your model isn't recognized.
+- `ExtraProductIds` — comma-separated hex IDs if your model isn't recognized. Restart the game after editing this; sensitivity, deadzone, inversion, and button bindings apply live.
 
 ## Troubleshooting
 

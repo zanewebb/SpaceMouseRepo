@@ -9,8 +9,11 @@ public sealed class SpaceMouseReportParser
     private readonly float _translationDeadzone;
     private readonly float _rotationDeadzone;
 
-    private float _tx, _ty, _tz, _rx, _ry, _rz;
-    private bool _b1, _b2;
+    // volatile: HID read thread writes via Feed(); main thread reads via State.
+    // Each individual axis read/write is atomic (float/bool); volatile prevents
+    // the JIT from caching a stale value in a register across the read.
+    private volatile float _tx, _ty, _tz, _rx, _ry, _rz;
+    private volatile bool _b1, _b2;
 
     public SpaceMouseReportParser(float translationDeadzone = 0f, float rotationDeadzone = 0f)
     {
