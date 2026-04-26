@@ -1,0 +1,17 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+*.DotSettings.user
+
+# Build artifacts
+*.dll
+*.pdb
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
