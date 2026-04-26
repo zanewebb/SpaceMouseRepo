@@ -60,7 +60,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          $url = "https://github.com/thunderstore-io/thunderstore-cli/releases/latest/download/tcli-Windows-x64.zip"
+          # tcli has only pre-releases, so 'latest/download' returns 404. Pin a known-good version.
+          $tcliVersion = "0.2.4"
+          $url = "https://github.com/thunderstore-io/thunderstore-cli/releases/download/$tcliVersion/tcli-$tcliVersion-win-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile tcli.zip
           Expand-Archive -Path tcli.zip -DestinationPath tcli -Force
 
