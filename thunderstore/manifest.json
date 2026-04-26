@@ -1,6 +1,6 @@
 {
   "name": "SpaceMouseRepo",
-  "version_number": "0.1.2",
+  "version_number": "0.1.3",
   "website_url": "https://github.com/zanewebb/SpaceMouseRepo",
   "description": "Use a 3Dconnexion SpaceMouse to rotate and finely position held objects.",
   "dependencies": [
