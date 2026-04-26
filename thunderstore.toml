@@ -1,0 +1,27 @@
+[config]
+schemaVersion = "0.0.1"
+
+[package]
+namespace = "zanewebb"
+name = "SpaceMouseRepo"
+versionNumber = "0.1.0"
+description = "Use a 3Dconnexion SpaceMouse to rotate and finely position held objects."
+websiteUrl = "https://github.com/zanewebb/SpaceMouseRepo"
+containsNsfwContent = false
+
+[[package.dependencies]]
+namespace = "BepInEx"
+name = "BepInExPack"
+version = "5.4.2100"
+
+[build]
+icon = "thunderstore/icon.png"
+readme = "thunderstore/README.md"
+outdir = "./build"
+
+[publish]
+repository = "https://thunderstore.io"
+communities = ["repo"]
+
+[publish.categories]
+repo = ["mods"]

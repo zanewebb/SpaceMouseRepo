@@ -29,6 +29,7 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content thunderstore/manifest.json | ConvertFrom-Json).version_number
+          Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_VERSION=$version"
           $stage = "stage"
           $pluginDir = "$stage/BepInEx/plugins/SpaceMouseRepo"
           New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
@@ -51,3 +52,31 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: SpaceMouseRepo-*.zip
+
+      - name: Install Thunderstore CLI
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $url = "https://github.com/thunderstore-io/thunderstore-cli/releases/latest/download/tcli-Windows-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile tcli.zip
+          Expand-Archive -Path tcli.zip -DestinationPath tcli -Force
+
+      - name: Verify thunderstore.toml version matches manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tomlVersion = (Select-String -Path thunderstore.toml -Pattern '^versionNumber\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ($tomlVersion -ne $env:PACKAGE_VERSION) {
+            Write-Error "Version mismatch: thunderstore.toml=$tomlVersion, manifest.json=$env:PACKAGE_VERSION. Bump both before tagging."
+            exit 1
+          }
+          Write-Output "Version $tomlVersion matches across files."
+
+      - name: Publish to Thunderstore
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TCLI_AUTH_TOKEN: ${{ secrets.TCLI_AUTH_TOKEN }}
+        shell: pwsh
+        run: |
+          $tcli = Get-ChildItem -Path tcli -Filter tcli.exe -Recurse | Select-Object -First 1
+          & $tcli.FullName publish --file "SpaceMouseRepo-$env:PACKAGE_VERSION.zip"
