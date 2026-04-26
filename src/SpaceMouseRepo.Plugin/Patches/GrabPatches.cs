@@ -8,7 +8,6 @@ using SpaceMouseRepo.Core.Behavior;
 using SpaceMouseRepo.Core.Input;
 using SNVector3 = System.Numerics.Vector3;
 using SNQuaternion = System.Numerics.Quaternion;
-using UVector3 = UnityEngine.Vector3;
 using UQuaternion = UnityEngine.Quaternion;
 
 namespace SpaceMouseRepo.Patches;
@@ -22,14 +21,16 @@ public static class GrabPatches
     private static readonly ConditionalWeakTable<object, HeldObjectController> _byHolder = new();
 
     private static FieldInfo? _isLocalField;
-    private static FieldInfo? _grabbedField;
-    private static FieldInfo? _targetRotField;
-    private static FieldInfo? _targetPosField;
+    private static FieldInfo? _grabbedBoolField;       // PhysGrabber.grabbed: Boolean
+    private static FieldInfo? _grabbedObjectRefField;  // PhysGrabber.grabbedPhysGrabObject: PhysGrabObject
+    private static FieldInfo? _physRotationField;      // PhysGrabber.physRotation: Quaternion
+    private static FieldInfo? _nextPhysRotationField;  // PhysGrabber.nextPhysRotation: Quaternion
 
     // One-shot diagnostic gates so we don't spam the log every frame.
     private static bool _diag_loggedFirstPostUpdate;
     private static bool _diag_loggedFirstIsLocalTrue;
-    private static bool _diag_loggedFirstGrabbedNonNull;
+    private static bool _diag_loggedFirstGrabbedTrue;
+    private static bool _diag_loggedRotationWrite;
     private static int _diag_isLocalFalseCount;
 
     public static void Install(Harmony harmony, ManualLogSource log, ManipulationConfig cfg, Func<SpaceMouseState> readState)
@@ -48,27 +49,39 @@ public static class GrabPatches
 
         DumpTypeShape("PhysGrabber", grabberType);
 
-        var update = AccessTools.Method(grabberType, "Update")
-                  ?? AccessTools.Method(grabberType, "LateUpdate");
-        if (update == null)
+        _isLocalField           = AccessTools.Field(grabberType, "isLocal");
+        _grabbedBoolField       = AccessTools.Field(grabberType, "grabbed");
+        _grabbedObjectRefField  = AccessTools.Field(grabberType, "grabbedPhysGrabObject");
+        _physRotationField      = AccessTools.Field(grabberType, "physRotation");
+        _nextPhysRotationField  = AccessTools.Field(grabberType, "nextPhysRotation");
+
+        if (_isLocalField == null || _grabbedBoolField == null || _grabbedObjectRefField == null || _physRotationField == null)
         {
-            _log.LogError("PhysGrabber.Update / LateUpdate not found. SpaceMouse mod inactive.");
+            _log.LogError($"PhysGrabber required-field discovery failed: " +
+                $"isLocal={_isLocalField != null} grabbed={_grabbedBoolField != null} " +
+                $"grabbedPhysGrabObject={_grabbedObjectRefField != null} physRotation={_physRotationField != null}. Plugin inactive.");
             _disabled = true;
             return;
         }
 
-        _isLocalField  = AccessTools.Field(grabberType, "isLocal");
-        _grabbedField  = AccessTools.Field(grabberType, "grabbed");
-        if (_isLocalField == null || _grabbedField == null)
+        // Patch every Update-flavored method that exists on PhysGrabber. Postfix runs after vanilla,
+        // so writes to physRotation here are the last word before Unity's next physics tick.
+        int patchedCount = 0;
+        foreach (var name in new[] { "Update", "LateUpdate", "FixedUpdate" })
         {
-            _log.LogError($"PhysGrabber field discovery failed: isLocal={_isLocalField != null} grabbed={_grabbedField != null}. Plugin inactive.");
-            _disabled = true;
-            return;
+            var m = AccessTools.Method(grabberType, name);
+            if (m == null) continue;
+            var postfix = new HarmonyMethod(typeof(GrabPatches).GetMethod(nameof(PostUpdate), BindingFlags.Static | BindingFlags.NonPublic));
+            harmony.Patch(m, postfix: postfix);
+            _log.LogInfo($"Patched {grabberType.FullName}.{name}");
+            patchedCount++;
         }
 
-        var postfix = new HarmonyMethod(typeof(GrabPatches).GetMethod(nameof(PostUpdate), BindingFlags.Static | BindingFlags.NonPublic));
-        harmony.Patch(update, postfix: postfix);
-        _log.LogInfo($"Patched {grabberType.FullName}.{update.Name}");
+        if (patchedCount == 0)
+        {
+            _log.LogError("No Update/LateUpdate/FixedUpdate found on PhysGrabber. Plugin inactive.");
+            _disabled = true;
+        }
     }
 
     private static void PostUpdate(object __instance)
@@ -98,34 +111,40 @@ public static class GrabPatches
                 _log.LogInfo("[diag] isLocal=true seen for first time");
             }
 
-            var grabbed = _grabbedField!.GetValue(__instance);
-            var ctrl = _byHolder.GetValue(__instance, _ => new HeldObjectController(_cfg));
-
-            if (grabbed == null)
+            // grabbed is a bool: are we currently holding something?
+            if (_grabbedBoolField!.GetValue(__instance) is not bool grabbing || !grabbing)
             {
-                ctrl.OnRelease();
+                _byHolder.GetValue(__instance, _ => new HeldObjectController(_cfg)).OnRelease();
                 return;
             }
 
-            if (!_diag_loggedFirstGrabbedNonNull)
+            if (!_diag_loggedFirstGrabbedTrue)
             {
-                _diag_loggedFirstGrabbedNonNull = true;
-                DumpTypeShape("grabbed runtime type", grabbed.GetType());
+                _diag_loggedFirstGrabbedTrue = true;
+                var grabbedRef = _grabbedObjectRefField!.GetValue(__instance);
+                if (grabbedRef != null) DumpTypeShape("grabbedPhysGrabObject runtime type", grabbedRef.GetType());
+                else _log.LogInfo("[diag] grabbing=true but grabbedPhysGrabObject is null");
             }
 
-            EnsureTargetFields(grabbed);
-            if (_targetRotField == null || _targetPosField == null) return;
-
+            var ctrl = _byHolder.GetValue(__instance, _ => new HeldObjectController(_cfg));
             ctrl.Apply(_readState(), UnityEngine.Time.deltaTime);
 
-            var rot = (UQuaternion)_targetRotField.GetValue(grabbed)!;
-            var pos = (UVector3)_targetPosField.GetValue(grabbed)!;
+            // Apply our accumulated rotation as a multiplicative delta on PhysGrabber.physRotation.
+            // We compose: new = ourDelta * vanilla. PhysGrabber's downstream rotation steering reads
+            // physRotation each frame, so this should propagate to the held object.
+            var vanillaRot = (UQuaternion)_physRotationField!.GetValue(__instance)!;
+            var ourDelta = ToUnity(ctrl.AccumulatedRotation);
+            var combined = ourDelta * vanillaRot;
+            _physRotationField.SetValue(__instance, combined);
 
-            var addRot = ToUnity(ctrl.AccumulatedRotation);
-            var addPos = ToUnity(ctrl.AccumulatedOffset);
+            // Mirror to nextPhysRotation if present, in case vanilla derives from that.
+            _nextPhysRotationField?.SetValue(__instance, combined);
 
-            _targetRotField.SetValue(grabbed, addRot * rot);
-            _targetPosField.SetValue(grabbed, pos + addPos);
+            if (!_diag_loggedRotationWrite)
+            {
+                _diag_loggedRotationWrite = true;
+                _log.LogInfo($"[diag] first rotation write: vanilla=({vanillaRot.x:F3},{vanillaRot.y:F3},{vanillaRot.z:F3},{vanillaRot.w:F3}) delta=({ourDelta.x:F3},{ourDelta.y:F3},{ourDelta.z:F3},{ourDelta.w:F3}) combined=({combined.x:F3},{combined.y:F3},{combined.z:F3},{combined.w:F3})");
+            }
         }
         catch (Exception e) when (e is not ThreadAbortException)
         {
@@ -139,21 +158,17 @@ public static class GrabPatches
         const BindingFlags bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         var fields = t.GetFields(bf);
         var props = t.GetProperties(bf);
-        _log.LogInfo($"[diag] {label} = {t.FullName} | {fields.Length} fields, {props.Length} properties");
+        var methods = t.GetMethods(bf);
+        _log.LogInfo($"[diag] {label} = {t.FullName} | {fields.Length} fields, {props.Length} properties, {methods.Length} methods");
         foreach (var f in fields) _log.LogInfo($"[diag]   field {f.FieldType.Name} {f.Name}");
         foreach (var p in props) _log.LogInfo($"[diag]   prop  {p.PropertyType.Name} {p.Name}");
-    }
-
-    private static void EnsureTargetFields(object grabbed)
-    {
-        if (_targetRotField != null && _targetPosField != null) return;
-        var t = grabbed.GetType();
-        _targetRotField ??= AccessTools.Field(t, "targetRotation");
-        _targetPosField ??= AccessTools.Field(t, "targetPosition");
-        if (_targetRotField == null || _targetPosField == null)
-            _log.LogError($"PhysGrabObject target fields not found on {t.FullName}. Looked for: targetRotation, targetPosition.");
+        foreach (var m in methods)
+        {
+            // Skip inherited UnityEngine.Object/MonoBehaviour boilerplate to keep the dump readable.
+            if (m.DeclaringType == typeof(object) || m.DeclaringType?.Namespace == "UnityEngine") continue;
+            _log.LogInfo($"[diag]   method {m.ReturnType.Name} {m.Name}({m.GetParameters().Length} args)");
+        }
     }
 
     private static UQuaternion ToUnity(SNQuaternion q) => new(q.X, q.Y, q.Z, q.W);
-    private static UVector3 ToUnity(SNVector3 v) => new(v.X, v.Y, v.Z);
 }

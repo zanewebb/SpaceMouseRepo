@@ -35,6 +35,16 @@ public sealed class SpaceMouseReportParser
         if (report == null || report.Length == 0) return;
         switch (report[0])
         {
+            // Combined translation+rotation in one report — used by the Universal Receiver
+            // (PID 0xC652) and other newer 3Dconnexion firmware.
+            case 0x01 when report.Length >= 13:
+                _tx = ReadAxis(report, 1);
+                _ty = ReadAxis(report, 3);
+                _tz = ReadAxis(report, 5);
+                _rx = ReadAxis(report, 7);
+                _ry = ReadAxis(report, 9);
+                _rz = ReadAxis(report, 11);
+                break;
             case 0x01 when report.Length >= 7:
                 _tx = ReadAxis(report, 1);
                 _ty = ReadAxis(report, 3);

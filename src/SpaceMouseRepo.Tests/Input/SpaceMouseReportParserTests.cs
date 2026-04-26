@@ -94,6 +94,31 @@ public class SpaceMouseReportParserTests
         Assert.Equal(0.5f, p.State.Tx, 3);
     }
 
+    private static byte[] CombinedReport(short tx, short ty, short tz, short rx, short ry, short rz) =>
+        new byte[]
+        {
+            0x01,
+            (byte)(tx & 0xFF), (byte)((tx >> 8) & 0xFF),
+            (byte)(ty & 0xFF), (byte)((ty >> 8) & 0xFF),
+            (byte)(tz & 0xFF), (byte)((tz >> 8) & 0xFF),
+            (byte)(rx & 0xFF), (byte)((rx >> 8) & 0xFF),
+            (byte)(ry & 0xFF), (byte)((ry >> 8) & 0xFF),
+            (byte)(rz & 0xFF), (byte)((rz >> 8) & 0xFF),
+        };
+
+    [Fact]
+    public void Combined_13_byte_report_populates_all_six_axes_in_one_pass()
+    {
+        var p = new SpaceMouseReportParser();
+        p.Feed(CombinedReport(350, -350, 175, -175, 350, -350));
+        Assert.Equal(1.0f,  p.State.Tx, 3);
+        Assert.Equal(-1.0f, p.State.Ty, 3);
+        Assert.Equal(0.5f,  p.State.Tz, 3);
+        Assert.Equal(-0.5f, p.State.Rx, 3);
+        Assert.Equal(1.0f,  p.State.Ry, 3);
+        Assert.Equal(-1.0f, p.State.Rz, 3);
+    }
+
     [Fact]
     public void Empty_or_too_short_report_is_ignored()
     {
