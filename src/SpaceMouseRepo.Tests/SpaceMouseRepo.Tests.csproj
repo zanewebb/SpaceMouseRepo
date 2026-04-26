@@ -4,6 +4,12 @@
     <LangVersion>10</LangVersion>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!--
+      Tests target net8.0 (matches the Plugin's expected runtime via netstandard2.0 Core),
+      but contributors may only have a newer .NET SDK installed locally. RollForward=Major
+      lets the test host run on a newer runtime if 8.x is missing. CI installs 8.0.x
+      explicitly (.github/workflows/build.yml) so tests run on the intended runtime there.
+    -->
     <RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
