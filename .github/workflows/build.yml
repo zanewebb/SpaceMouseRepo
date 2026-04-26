@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore src/SpaceMouseRepo.sln
+
+      - name: Test
+        run: dotnet test src/SpaceMouseRepo.sln --no-restore --verbosity normal
+
+      - name: Build plugin (Release)
+        run: dotnet build src/SpaceMouseRepo.Plugin -c Release --no-restore
+
+      - name: Stage Thunderstore package
+        shell: pwsh
+        run: |
+          $version = (Get-Content thunderstore/manifest.json | ConvertFrom-Json).version_number
+          $stage = "stage"
+          $pluginDir = "$stage/BepInEx/plugins/SpaceMouseRepo"
+          New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
+          Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.dll      $pluginDir
+          Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.Core.dll $pluginDir
+          Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/HidLibrary.dll          $pluginDir
+          Copy-Item thunderstore/manifest.json $stage
+          Copy-Item thunderstore/icon.png      $stage
+          Copy-Item thunderstore/README.md     $stage
+          Compress-Archive -Path "$stage/*" -DestinationPath "SpaceMouseRepo-$version.zip" -Force
+          Write-Output "Built SpaceMouseRepo-$version.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thunderstore-package
+          path: SpaceMouseRepo-*.zip
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SpaceMouseRepo-*.zip
