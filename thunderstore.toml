@@ -9,10 +9,8 @@ description = "Use a 3Dconnexion SpaceMouse to rotate and finely position held o
 websiteUrl = "https://github.com/zanewebb/SpaceMouseRepo"
 containsNsfwContent = false
 
-[[package.dependencies]]
-namespace = "BepInEx"
-name = "BepInExPack"
-version = "5.4.2100"
+[package.dependencies]
+"BepInEx-BepInExPack" = "5.4.2100"
 
 [build]
 icon = "thunderstore/icon.png"
