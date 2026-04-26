@@ -26,6 +26,12 @@ public static class GrabPatches
     private static FieldInfo? _targetRotField;
     private static FieldInfo? _targetPosField;
 
+    // One-shot diagnostic gates so we don't spam the log every frame.
+    private static bool _diag_loggedFirstPostUpdate;
+    private static bool _diag_loggedFirstIsLocalTrue;
+    private static bool _diag_loggedFirstGrabbedNonNull;
+    private static int _diag_isLocalFalseCount;
+
     public static void Install(Harmony harmony, ManualLogSource log, ManipulationConfig cfg, Func<SpaceMouseState> readState)
     {
         _log = log;
@@ -39,6 +45,8 @@ public static class GrabPatches
             _disabled = true;
             return;
         }
+
+        DumpTypeShape("PhysGrabber", grabberType);
 
         var update = AccessTools.Method(grabberType, "Update")
                   ?? AccessTools.Method(grabberType, "LateUpdate");
@@ -68,7 +76,28 @@ public static class GrabPatches
         if (_disabled) return;
         try
         {
-            if (_isLocalField!.GetValue(__instance) is not bool isLocal || !isLocal) return;
+            if (!_diag_loggedFirstPostUpdate)
+            {
+                _diag_loggedFirstPostUpdate = true;
+                _log.LogInfo("[diag] PostUpdate first call");
+            }
+
+            if (_isLocalField!.GetValue(__instance) is not bool isLocal || !isLocal)
+            {
+                if (_diag_isLocalFalseCount < 3)
+                {
+                    _diag_isLocalFalseCount++;
+                    _log.LogInfo($"[diag] isLocal=false on instance #{_diag_isLocalFalseCount} (count capped at 3)");
+                }
+                return;
+            }
+
+            if (!_diag_loggedFirstIsLocalTrue)
+            {
+                _diag_loggedFirstIsLocalTrue = true;
+                _log.LogInfo("[diag] isLocal=true seen for first time");
+            }
+
             var grabbed = _grabbedField!.GetValue(__instance);
             var ctrl = _byHolder.GetValue(__instance, _ => new HeldObjectController(_cfg));
 
@@ -76,6 +105,12 @@ public static class GrabPatches
             {
                 ctrl.OnRelease();
                 return;
+            }
+
+            if (!_diag_loggedFirstGrabbedNonNull)
+            {
+                _diag_loggedFirstGrabbedNonNull = true;
+                DumpTypeShape("grabbed runtime type", grabbed.GetType());
             }
 
             EnsureTargetFields(grabbed);
@@ -97,6 +132,16 @@ public static class GrabPatches
             _log.LogError($"GrabPatches.PostUpdate threw, disabling for session: {e}");
             _disabled = true;
         }
+    }
+
+    private static void DumpTypeShape(string label, Type t)
+    {
+        const BindingFlags bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        var fields = t.GetFields(bf);
+        var props = t.GetProperties(bf);
+        _log.LogInfo($"[diag] {label} = {t.FullName} | {fields.Length} fields, {props.Length} properties");
+        foreach (var f in fields) _log.LogInfo($"[diag]   field {f.FieldType.Name} {f.Name}");
+        foreach (var p in props) _log.LogInfo($"[diag]   prop  {p.PropertyType.Name} {p.Name}");
     }
 
     private static void EnsureTargetFields(object grabbed)
