@@ -10,8 +10,11 @@
   <ItemGroup>
     <PackageReference Include="BepInEx.Core" Version="5.4.21" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" />
-    <PackageReference Include="HarmonyX" Version="2.10.2" />
-    <PackageReference Include="HidLibrary" Version="3.3.40" />
+    <!--
+      HarmonyX is intentionally NOT pinned; it comes transitively from BepInEx.Core so we use
+      the same version BepInEx ships at runtime. v0.1.x pinned 2.10.2 explicitly and patches
+      registered but never fired, suspected version mismatch with BepInEx-bundled runtime.
+    -->
     <PackageReference Include="UnityEngine.Modules" Version="2022.3.21" IncludeAssets="compile" />
   </ItemGroup>
   <ItemGroup>

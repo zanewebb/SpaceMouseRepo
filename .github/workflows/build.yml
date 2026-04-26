@@ -38,7 +38,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
           Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.dll      $pluginDir
           Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.Core.dll $pluginDir
-          Copy-Item src/SpaceMouseRepo.Plugin/bin/Release/net472/HidLibrary.dll          $pluginDir
           Copy-Item thunderstore/manifest.json $stage
           Copy-Item thunderstore/icon.png      $stage
           Copy-Item thunderstore/README.md     $stage
