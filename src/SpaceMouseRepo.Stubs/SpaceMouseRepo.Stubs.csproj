@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <!--
+      Compile-time stub for R.E.P.O.'s Assembly-CSharp.dll. The output DLL is named
+      "Assembly-CSharp" so that at compile time, our Plugin can reference PhysGrabber
+      (and friends) as real types and use [HarmonyPatch(typeof(PhysGrabber))] etc.
+      At runtime, BepInEx loads the game's actual Assembly-CSharp.dll first, and our
+      typeof() lookups resolve to the real types because assembly resolution is by name.
+    -->
+    <AssemblyName>Assembly-CSharp</AssemblyName>
+    <RootNamespace></RootNamespace>
+    <!-- Don't ship this stub in any package output. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="UnityEngine.Modules" Version="2022.3.21" IncludeAssets="compile" />
+  </ItemGroup>
+</Project>

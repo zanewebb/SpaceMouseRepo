@@ -19,5 +19,16 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SpaceMouseRepo.Core\SpaceMouseRepo.Core.csproj" />
+    <!--
+      Compile-time-only reference to a stub Assembly-CSharp.dll so we can write
+      [HarmonyPatch(typeof(PhysGrabber))] like every working R.E.P.O. mod does.
+      ExcludeAssets=runtime keeps the stub out of our shipped package; the real
+      Assembly-CSharp.dll is loaded by Unity at game start.
+    -->
+    <ProjectReference Include="..\SpaceMouseRepo.Stubs\SpaceMouseRepo.Stubs.csproj">
+      <Private>False</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
 </Project>

@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMouseRepo.Plugin", "Sp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMouseRepo.Tests", "SpaceMouseRepo.Tests\SpaceMouseRepo.Tests.csproj", "{7EF1D925-D980-4BAD-AD9F-6A1F336A993A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceMouseRepo.Stubs", "SpaceMouseRepo.Stubs\SpaceMouseRepo.Stubs.csproj", "{324A54B5-C801-414B-BBE0-A3D6A0999836}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{7EF1D925-D980-4BAD-AD9F-6A1F336A993A}.Release|x64.Build.0 = Release|Any CPU
 		{7EF1D925-D980-4BAD-AD9F-6A1F336A993A}.Release|x86.ActiveCfg = Release|Any CPU
 		{7EF1D925-D980-4BAD-AD9F-6A1F336A993A}.Release|x86.Build.0 = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|x64.Build.0 = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Debug|x86.Build.0 = Debug|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|Any CPU.Build.0 = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|x64.ActiveCfg = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|x64.Build.0 = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|x86.ActiveCfg = Release|Any CPU
+		{324A54B5-C801-414B-BBE0-A3D6A0999836}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
