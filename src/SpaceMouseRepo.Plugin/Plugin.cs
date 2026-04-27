@@ -11,7 +11,7 @@ public sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.zanewebb.spacemouse_repo";
     public const string NAME = "SpaceMouse for R.E.P.O.";
-    public const string VERSION = "0.2.0";
+    public const string VERSION = "0.3.0";
 
     private SpaceMouseSdk? _sdk;
     private Harmony? _harmony;

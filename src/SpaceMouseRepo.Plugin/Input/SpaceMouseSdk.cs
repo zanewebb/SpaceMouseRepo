@@ -1,123 +1,337 @@
 using System;
-using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
 using BepInEx.Logging;
 using SpaceMouseRepo.Core.Input;
 
 namespace SpaceMouseRepo.Input;
 
 /// <summary>
-/// Reads SpaceMouse motion via the 3Dconnexion 3DxWare driver's TDxInput COM API.
-/// The driver claims exclusive HID access on Windows, so raw HID reads are dead in the
-/// water — this is the only stable input path. Late-bound COM via reflection so we don't
-/// require the Interop assembly at compile time and can no-op cleanly when the driver
-/// isn't installed.
+/// Reads SpaceMouse motion via the 3Dconnexion siappdll native SDK (siapp.h).
+/// COM-based TDxInput is broken on Mono; this is the next-most-portable native path.
+///
+/// siapp's protocol is window-message-driven: the driver dispatches motion events as
+/// WM_3DXSI* messages to a registered HWND. We create a hidden message-only window on
+/// a dedicated background thread, run a GetMessage loop there, and forward each Si event
+/// to atomic per-axis floats the main thread reads via the State property.
+///
+/// P/Invoke surface adapted from DMXControl/3Dconnexion-driver (DMXControl, 3Dconnexion SDK
+/// license).
 /// </summary>
 public sealed class SpaceMouseSdk : IDisposable
 {
+    private const string SiAppDll = "siappdll";
+
+    private enum SpwRetVal
+    {
+        SPW_NO_ERROR = 0,
+        SPW_ERROR,
+        SI_BAD_HANDLE,
+        SI_BAD_ID,
+        SI_BAD_VALUE,
+        SI_IS_EVENT,
+        SI_SKIP_EVENT,
+        SI_NOT_EVENT,
+        SI_NO_DRIVER,
+        SI_NO_RESPONSE,
+        SI_UNSUPPORTED,
+        SI_UNINITIALIZED,
+        SI_WRONG_DRIVER,
+        SI_INTERNAL_ERROR,
+        SI_BAD_PROTOCOL,
+        SI_OUT_OF_MEMORY,
+        SPW_DLL_LOAD_ERROR,
+        SI_NOT_OPEN,
+        SI_ITEM_NOT_FOUND,
+        SI_UNSUPPORTED_DEVICE,
+    }
+
+    private enum SiEventType
+    {
+        SI_BUTTON_EVENT = 1,
+        SI_MOTION_EVENT,
+        SI_COMBO_EVENT,
+        SI_ZERO_EVENT,
+    }
+
+    private const int SI_ANY_DEVICE = -1;
+    private const int SI_EVENT = 0x0001;
+    private const int MAX_PATH = 260;
+    private const int SI_MAXBUF = 128;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    private struct SiOpenData
+    {
+        public int hWnd;
+        public IntPtr transCtl;
+        public int processID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+        public string exeFile;
+        public int libFlag;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SiGetEventData
+    {
+        public uint msg;
+        public IntPtr wParam;
+        public IntPtr lParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SiButtonData
+    {
+        public uint last, current, pressed, released;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SiSpwData
+    {
+        public SiButtonData bData;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+        public int[] mData;
+        public int period;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = SI_MAXBUF)]
+        public byte[] exData;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SiSpwEvent
+    {
+        public int type;          // SiEventType
+        public SiSpwData spwData;
+    }
+
+    [DllImport(SiAppDll, EntryPoint = "SiInitialize")]
+    private static extern SpwRetVal SiInitialize();
+    [DllImport(SiAppDll, EntryPoint = "SiTerminate")]
+    private static extern int SiTerminate();
+    [DllImport(SiAppDll, EntryPoint = "SiClose")]
+    private static extern SpwRetVal SiClose(IntPtr hdl);
+    [DllImport(SiAppDll, EntryPoint = "SiOpenWinInit")]
+    private static extern int SiOpenWinInit(ref SiOpenData o, IntPtr hwnd);
+    [DllImport(SiAppDll, EntryPoint = "SiOpen", CharSet = CharSet.Ansi)]
+    private static extern IntPtr SiOpen(string appName, int devID, IntPtr mask, int mode, ref SiOpenData data);
+    [DllImport(SiAppDll, EntryPoint = "SiGetEvent")]
+    private static extern SpwRetVal SiGetEvent(IntPtr hdl, int flags, ref SiGetEventData data, ref SiSpwEvent ev);
+
+    // Win32 message-only window plumbing
+    private delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct WNDCLASSEX
+    {
+        public uint cbSize;
+        public uint style;
+        public WndProc lpfnWndProc;
+        public int cbClsExtra;
+        public int cbWndExtra;
+        public IntPtr hInstance;
+        public IntPtr hIcon;
+        public IntPtr hCursor;
+        public IntPtr hbrBackground;
+        [MarshalAs(UnmanagedType.LPTStr)] public string? lpszMenuName;
+        [MarshalAs(UnmanagedType.LPTStr)] public string lpszClassName;
+        public IntPtr hIconSm;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public int pt_x;
+        public int pt_y;
+    }
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern ushort RegisterClassEx(ref WNDCLASSEX cls);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern IntPtr CreateWindowEx(uint exStyle, string className, string? windowName, uint style,
+        int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
+    [DllImport("user32.dll")]
+    private static extern bool DestroyWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint min, uint max);
+    [DllImport("user32.dll")]
+    private static extern bool TranslateMessage(ref MSG lpMsg);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr DispatchMessage(ref MSG lpMsg);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+    [DllImport("kernel32.dll")]
+    private static extern int GetCurrentProcessId();
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr GetModuleHandle(string? module);
+
+    private static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
+    private const uint WM_QUIT = 0x0012;
+    private const uint WM_CLOSE = 0x0010;
+
+    // Instance state
     private readonly ManualLogSource _log;
-    private readonly float _translationDeadzone;
-    private readonly float _rotationDeadzone;
-    private readonly object? _device;
-    private readonly object? _sensor;
-    private readonly bool _connected;
+    private readonly float _tDead;
+    private readonly float _rDead;
+    private IntPtr _siHandle;
+    private IntPtr _hwnd;
+    private Thread? _msgThread;
+    private uint _msgThreadId;
+    private WndProc? _wndProcDelegate; // keep alive against GC
+    private volatile bool _ready;
+    private volatile float _tx, _ty, _tz, _rx, _ry, _rz;
+
+    public bool IsActive => _ready;
 
     public SpaceMouseSdk(ManualLogSource log, float translationDeadzone, float rotationDeadzone)
     {
         _log = log;
-        _translationDeadzone = translationDeadzone;
-        _rotationDeadzone = rotationDeadzone;
-
-        Type? deviceType;
-        try
-        {
-            deviceType = Type.GetTypeFromProgID("TDxInput.Device");
-        }
-        catch (Exception e)
-        {
-            _log.LogWarning($"TDxInput.Device ProgID lookup threw: {e.Message}. SpaceMouse input inactive.");
-            return;
-        }
-
-        if (deviceType == null)
-        {
-            _log.LogWarning("TDxInput.Device ProgID not registered. Install 3Dconnexion 3DxWare to enable SpaceMouse input.");
-            return;
-        }
+        _tDead = translationDeadzone;
+        _rDead = rotationDeadzone;
 
         try
         {
-            _device = Activator.CreateInstance(deviceType);
-            // LoadPreferences is best-effort — the app profile may not exist yet.
-            try { Invoke(_device, "LoadPreferences", "REPO"); } catch { /* ignore */ }
-            Invoke(_device, "Connect");
-            _sensor = Get(_device, "Sensor");
-            _connected = _sensor != null;
-            if (_connected) _log.LogInfo("3DxWare TDxInput.Device connected; SpaceMouse input active.");
-            else _log.LogWarning("3DxWare device created but Sensor was null. Input inactive.");
+            var startedSignal = new ManualResetEventSlim();
+            _msgThread = new Thread(() => MessageLoop(startedSignal))
+            {
+                IsBackground = true,
+                Name = "SpaceMouseSiAppMsgPump",
+            };
+            _msgThread.SetApartmentState(ApartmentState.STA);
+            _msgThread.Start();
+            // Wait briefly for the thread to set _ready or fail.
+            startedSignal.Wait(2000);
+            if (!_ready) _log.LogWarning("siappdll setup did not complete within 2s; SpaceMouse input inactive.");
         }
         catch (Exception e)
         {
-            _log.LogError($"3DxWare connect failed: {e}");
+            _log.LogError($"siappdll thread start failed: {e}");
         }
     }
 
-    public bool IsActive => _connected;
+    public SpaceMouseState State => new(
+        Dz(_tx, _tDead), Dz(_ty, _tDead), Dz(_tz, _tDead),
+        Dz(_rx, _rDead), Dz(_ry, _rDead), Dz(_rz, _rDead),
+        button1: false, button2: false);
 
-    public SpaceMouseState State
+    private void MessageLoop(ManualResetEventSlim started)
     {
-        get
+        try
         {
-            if (_sensor == null) return SpaceMouseState.Empty;
-            try
+            _msgThreadId = GetCurrentThreadId();
+
+            var initRc = SiInitialize();
+            if (initRc != SpwRetVal.SPW_NO_ERROR)
             {
-                var translation = Get(_sensor, "Translation");
-                var rotation = Get(_sensor, "Rotation");
-                if (translation == null || rotation == null) return SpaceMouseState.Empty;
-
-                float tx = ToFloat(Get(translation, "X"));
-                float ty = ToFloat(Get(translation, "Y"));
-                float tz = ToFloat(Get(translation, "Z"));
-
-                // Rotation is an AngleAxis: unit-vector axis (X,Y,Z) plus an Angle.
-                // Per-axis angular value = axis_component * angle.
-                float ax = ToFloat(Get(rotation, "X"));
-                float ay = ToFloat(Get(rotation, "Y"));
-                float az = ToFloat(Get(rotation, "Z"));
-                float angle = ToFloat(Get(rotation, "Angle"));
-
-                return new SpaceMouseState(
-                    Dz(tx, _translationDeadzone),
-                    Dz(ty, _translationDeadzone),
-                    Dz(tz, _translationDeadzone),
-                    Dz(ax * angle, _rotationDeadzone),
-                    Dz(ay * angle, _rotationDeadzone),
-                    Dz(az * angle, _rotationDeadzone),
-                    button1: false, button2: false);
+                _log.LogWarning($"SiInitialize returned {initRc}; SpaceMouse input inactive.");
+                started.Set();
+                return;
             }
-            catch
+
+            // Register a unique class name and create a hidden message-only window.
+            const string className = "SpaceMouseRepo_HiddenWindow";
+            _wndProcDelegate = WindowProc;
+            var hInstance = GetModuleHandle(null);
+            var wc = new WNDCLASSEX
             {
-                return SpaceMouseState.Empty;
+                cbSize = (uint)Marshal.SizeOf<WNDCLASSEX>(),
+                lpfnWndProc = _wndProcDelegate,
+                hInstance = hInstance,
+                lpszClassName = className,
+            };
+            var atom = RegisterClassEx(ref wc);
+            if (atom == 0)
+            {
+                _log.LogError($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
+                started.Set();
+                return;
+            }
+
+            _hwnd = CreateWindowEx(0, className, null, 0, 0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero, hInstance, IntPtr.Zero);
+            if (_hwnd == IntPtr.Zero)
+            {
+                _log.LogError($"CreateWindowEx failed: {Marshal.GetLastWin32Error()}");
+                started.Set();
+                return;
+            }
+
+            var openData = new SiOpenData { exeFile = "REPO.exe" };
+            SiOpenWinInit(ref openData, _hwnd);
+            _siHandle = SiOpen("SpaceMouseRepo", SI_ANY_DEVICE, IntPtr.Zero, SI_EVENT, ref openData);
+            if (_siHandle == IntPtr.Zero)
+            {
+                _log.LogError("SiOpen returned null. SpaceMouse input inactive.");
+                started.Set();
+                return;
+            }
+
+            _ready = true;
+            _log.LogInfo("3DxWare siappdll connected; SpaceMouse input active.");
+            started.Set();
+
+            // Pump messages until WM_QUIT.
+            while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
+            {
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
             }
         }
+        catch (DllNotFoundException)
+        {
+            _log.LogWarning("siappdll.dll not found. Install/repair 3Dconnexion 3DxWare to enable SpaceMouse input.");
+            started.Set();
+        }
+        catch (Exception e)
+        {
+            _log.LogError($"siappdll message loop crashed: {e}");
+            started.Set();
+        }
+    }
+
+    private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (_siHandle != IntPtr.Zero)
+        {
+            var ed = new SiGetEventData { msg = msg, wParam = wParam, lParam = lParam };
+            var ev = new SiSpwEvent { spwData = new SiSpwData { mData = new int[6], exData = new byte[SI_MAXBUF] } };
+            var rc = SiGetEvent(_siHandle, 0, ref ed, ref ev);
+            if (rc == SpwRetVal.SI_IS_EVENT && ev.type == (int)SiEventType.SI_MOTION_EVENT)
+            {
+                // mData[0..2] = translation X/Y/Z, [3..5] = rotation X/Y/Z, raw range ~[-1500, 1500].
+                const float scale = 1.0f / 350f;
+                _tx = ev.spwData.mData[0] * scale;
+                _ty = ev.spwData.mData[1] * scale;
+                _tz = ev.spwData.mData[2] * scale;
+                _rx = ev.spwData.mData[3] * scale;
+                _ry = ev.spwData.mData[4] * scale;
+                _rz = ev.spwData.mData[5] * scale;
+            }
+            else if (rc == SpwRetVal.SI_IS_EVENT && ev.type == (int)SiEventType.SI_ZERO_EVENT)
+            {
+                _tx = _ty = _tz = _rx = _ry = _rz = 0f;
+            }
+        }
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
     public void Dispose()
     {
-        if (!_connected || _device == null) return;
-        try { Invoke(_device, "Disconnect"); } catch { /* ignore on shutdown */ }
+        try
+        {
+            if (_siHandle != IntPtr.Zero) { SiClose(_siHandle); _siHandle = IntPtr.Zero; }
+            if (_hwnd != IntPtr.Zero) { DestroyWindow(_hwnd); _hwnd = IntPtr.Zero; }
+            if (_msgThreadId != 0) PostThreadMessage(_msgThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            _msgThread?.Join(500);
+            SiTerminate();
+        }
+        catch { /* best-effort shutdown */ }
     }
-
-    private static object? Get(object target, string name) =>
-        target.GetType().InvokeMember(name,
-            BindingFlags.GetProperty | BindingFlags.Instance | BindingFlags.Public,
-            null, target, null);
-
-    private static object? Invoke(object target, string name, params object[] args) =>
-        target.GetType().InvokeMember(name,
-            BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public,
-            null, target, args);
-
-    private static float ToFloat(object? v) => v == null ? 0f : Convert.ToSingle(v);
 
     private static float Dz(float v, float deadzone) => Math.Abs(v) <= deadzone ? 0f : v;
 }
