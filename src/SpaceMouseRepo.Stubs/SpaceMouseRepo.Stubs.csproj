@@ -12,6 +12,14 @@
     -->
     <AssemblyName>Assembly-CSharp</AssemblyName>
     <RootNamespace></RootNamespace>
+    <!--
+      Match R.E.P.O.'s real Assembly-CSharp.dll version exactly. Without this, [HarmonyPatch(typeof(PhysGrabber))]
+      bakes the stub's default 1.0.0.0 into the attribute's strong type name; Harmony then fails to resolve
+      it against the runtime-loaded real Assembly-CSharp (Version=0.0.0.0) and silently no-ops. This is why
+      v0.1.x-v0.3.1 patches all reported "attached" but never fired.
+    -->
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
+    <FileVersion>0.0.0.0</FileVersion>
     <!-- Don't ship this stub in any package output. -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
