@@ -11,8 +11,9 @@ STAGE="$(mktemp -d)"
 trap "rm -rf '$STAGE'" EXIT
 
 mkdir -p "$STAGE/BepInEx/plugins/SpaceMouseRepo"
-cp src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.dll       "$STAGE/BepInEx/plugins/SpaceMouseRepo/"
-cp src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.Core.dll  "$STAGE/BepInEx/plugins/SpaceMouseRepo/"
+cp src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.dll              "$STAGE/BepInEx/plugins/SpaceMouseRepo/"
+cp src/SpaceMouseRepo.Plugin/bin/Release/net472/SpaceMouseRepo.Core.dll         "$STAGE/BepInEx/plugins/SpaceMouseRepo/"
+cp src/SpaceMouseRepo.Plugin/bin/Release/net472/System.Numerics.Vectors.dll     "$STAGE/BepInEx/plugins/SpaceMouseRepo/"
 
 cp thunderstore/manifest.json "$STAGE/"
 cp thunderstore/icon.png      "$STAGE/"
