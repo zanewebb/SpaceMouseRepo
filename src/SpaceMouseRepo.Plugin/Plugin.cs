@@ -13,7 +13,7 @@ public sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.zanewebb.spacemouse_repo";
     public const string NAME = "SpaceMouse for R.E.P.O.";
-    public const string VERSION = "0.3.3";
+    public const string VERSION = "0.3.4";
 
     // Heartbeat diagnostic: writes both to BepInEx logger AND directly to a file in the user's
     // BepInEx config dir. If the file gets heartbeats but BepInEx's LogOutput.log doesn't, then
@@ -28,6 +28,23 @@ public sealed class Plugin : BaseUnityPlugin
 
     private void Awake()
     {
+        // Survive R.E.P.O.'s scene transitions. Empirically (v0.3.3 side-channel showed Awake
+        // fired but Update never did across 5 minutes of gameplay), the BepInEx_Manager
+        // GameObject our component is parented to gets cleaned up after the first scene change,
+        // killing all our per-frame work. Mirror the workaround the working DualGrab mod uses:
+        // orphan to scene root, mark hidden + don't-save, and call DontDestroyOnLoad explicitly.
+        try
+        {
+            gameObject.transform.parent = null;
+            gameObject.hideFlags = UnityEngine.HideFlags.HideAndDontSave;
+            UnityEngine.Object.DontDestroyOnLoad(gameObject);
+        }
+        catch (Exception e)
+        {
+            // Non-fatal; if we can't reparent, we'll find out from missing heartbeats.
+            try { _diagFile?.WriteLine($"reparent attempt threw: {e.Message}"); } catch { }
+        }
+
         // Open a side-channel diag log next to BepInEx's LogOutput.log.
         try
         {

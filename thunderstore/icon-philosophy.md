@@ -1,0 +1,11 @@
+# Orbital Precision
+
+A philosophy of controlled chaos — the marriage of industrial exactitude and cosmic drift. Forms do not merely exist in space; they negotiate it. Every shape is simultaneously anchor and vector, both a point of rest and a declaration of motion. The visual field becomes a navigation system for forces that cannot be touched but can be felt — rotation, translation, the hum of six axes in silent conversation.
+
+Color is not decoration but signal. Saturated cyan bites through darkness like a targeting reticle. Deep violet holds the weight of void. Acid green arrives like a system alert — urgent, precise, alive. These hues never blend softly; they collide at hard edges, radiating energy with the meticulous craftsmanship of someone who has spent countless hours calibrating the exact threshold between readable and electric. The palette is the product of painstaking obsession.
+
+Form language is borrowed from technical drafting and industrial interface design — concentric rings, orthographic axis arrows, hexagonal grids suggesting circuit topology. But these are rendered with the labored care of a master printmaker: each stroke placed with the weight of deliberate decision, each gradient a hand-tuned ramp between certainty and ambiguity. Nothing is accidental. Everything is the result of deep expertise translated into pixel.
+
+Scale and rhythm operate on tension — a large central mass anchored by small, precise satellite elements. The eye is led not by arrows but by gravitational suggestion. Negative space is not emptiness but charged vacuum, the pause between technical commands. Composition is never symmetrical yet always balanced, as though the whole piece rests on a fulcrum only the designer can see. This balance is achieved through painstaking attention to visual weight at every scale.
+
+Typography, when present, functions as a circuit trace — thin, mono-spaced, clipped to the minimum necessary signal. It does not explain; it labels. Like silkscreen text on a PCB, it belongs to the object rather than describing it from outside. The final work should feel as though it took countless hours — a master-level execution where every element earns its place through rigorous visual necessity.
