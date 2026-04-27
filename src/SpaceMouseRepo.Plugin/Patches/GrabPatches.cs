@@ -17,6 +17,13 @@ public static class GrabPatches
     internal static Func<SpaceMouseState> ReadState = () => SpaceMouseState.Empty;
     internal static bool Disabled;
     internal static readonly ConditionalWeakTable<PhysGrabber, HeldObjectController> ByHolder = new();
+    internal static System.IO.StreamWriter? SideChannel;
+
+    internal static void Tee(string line)
+    {
+        Log.LogInfo(line);
+        try { SideChannel?.WriteLine($"[{System.DateTime.Now:HH:mm:ss.fff}] {line}"); } catch { /* ignore */ }
+    }
 
     public static void Install(Harmony harmony, ManualLogSource log, ManipulationConfig cfg, Func<SpaceMouseState> readState)
     {
@@ -55,7 +62,7 @@ public static class UpdateSentinelPatch
         if (!_diag_ran)
         {
             _diag_ran = true;
-            GrabPatches.Log.LogInfo("[diag] PhysGrabber.Update POSTFIX ran (Harmony is patching correctly)");
+            GrabPatches.Tee("[diag] PhysGrabber.Update POSTFIX ran (Harmony is patching correctly)");
         }
     }
 }
@@ -73,7 +80,7 @@ public static class GetRotationInputPatch
         if (!_diag_postfixRan)
         {
             _diag_postfixRan = true;
-            GrabPatches.Log.LogInfo($"[diag] GetRotationInput POSTFIX ran, vanilla=({__result.x:F3},{__result.y:F3},{__result.z:F3},{__result.w:F3})");
+            GrabPatches.Tee($"[diag] GetRotationInput POSTFIX ran, vanilla=({__result.x:F3},{__result.y:F3},{__result.z:F3},{__result.w:F3})");
         }
 
         if (GrabPatches.Disabled) return;
@@ -90,7 +97,7 @@ public static class GetRotationInputPatch
             if (!_diag_postfixModified)
             {
                 _diag_postfixModified = true;
-                GrabPatches.Log.LogInfo($"[diag] GetRotationInput POSTFIX modified result: delta=({ourDelta.x:F3},{ourDelta.y:F3},{ourDelta.z:F3},{ourDelta.w:F3})");
+                GrabPatches.Tee($"[diag] GetRotationInput POSTFIX modified result: delta=({ourDelta.x:F3},{ourDelta.y:F3},{ourDelta.z:F3},{ourDelta.w:F3})");
             }
         }
         catch (Exception e) when (e is not ThreadAbortException)
