@@ -8,6 +8,7 @@ public class PhysGrabber : MonoBehaviour
     public bool isLocal;
     public bool grabbed;
     public Quaternion physRotation;
+    public Quaternion nextPhysRotation;
     public PhysGrabObject grabbedPhysGrabObject;
     public Rigidbody grabbedObject;
     public Camera playerCamera;
@@ -15,7 +16,6 @@ public class PhysGrabber : MonoBehaviour
 
     public void Update() { }
     public void FixedUpdate() { }
-    public Quaternion GetRotationInput() => default;
 }
 
 public class PhysGrabObject : MonoBehaviour
