@@ -13,7 +13,7 @@ public sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.zanewebb.spacemouse_repo";
     public const string NAME = "SpaceMouse for R.E.P.O.";
-    public const string VERSION = "0.3.7";
+    public const string VERSION = "0.3.8";
 
     // Heartbeat diagnostic: writes both to BepInEx logger AND directly to a file in the user's
     // BepInEx config dir. If the file gets heartbeats but BepInEx's LogOutput.log doesn't, then
@@ -84,8 +84,21 @@ public sealed class Plugin : BaseUnityPlugin
         if (_heartbeatTimer < 5f) return;
         _heartbeatTimer = 0f;
         _heartbeatCount++;
-        Logger.LogInfo($"[heartbeat] Plugin.Update tick #{_heartbeatCount} at t={UnityEngine.Time.unscaledTime:F1}s");
-        WriteSideChannel($"[heartbeat] Plugin.Update tick #{_heartbeatCount} at t={UnityEngine.Time.unscaledTime:F1}s");
+
+        var sdk = _sdk;
+        string sdkInfo;
+        if (sdk == null)
+        {
+            sdkInfo = "no SDK";
+        }
+        else
+        {
+            var (tx, ty, tz, rx, ry, rz) = sdk.RawAxes;
+            sdkInfo = $"active={sdk.IsActive} wndProcCalls={sdk.WindowProcCalls} siEvents={sdk.SiAnyEvents} siMotion={sdk.SiMotionEvents} axes=T({tx:F2},{ty:F2},{tz:F2}) R({rx:F2},{ry:F2},{rz:F2})";
+        }
+        var line = $"[heartbeat] tick #{_heartbeatCount} t={UnityEngine.Time.unscaledTime:F1}s | {sdkInfo}";
+        Logger.LogInfo(line);
+        WriteSideChannel(line);
     }
 
     private void OnDestroy()

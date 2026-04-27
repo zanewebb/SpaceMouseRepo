@@ -189,6 +189,16 @@ public sealed class SpaceMouseSdk : IDisposable
 
     public bool IsActive => _ready;
 
+    // Diagnostic counters for v0.3.8: surface whether siappdll is dispatching anything to our
+    // hidden window's message pump, and what the latest motion data looks like. Read by Plugin.Update.
+    public int WindowProcCalls => _windowProcCalls;
+    public int SiMotionEvents => _siMotionEvents;
+    public int SiAnyEvents => _siAnyEvents;
+    public (float Tx, float Ty, float Tz, float Rx, float Ry, float Rz) RawAxes => (_tx, _ty, _tz, _rx, _ry, _rz);
+    private int _windowProcCalls;
+    private int _siMotionEvents;
+    private int _siAnyEvents;
+
     public SpaceMouseSdk(ManualLogSource log, float translationDeadzone, float rotationDeadzone)
     {
         _log = log;
@@ -298,13 +308,16 @@ public sealed class SpaceMouseSdk : IDisposable
 
     private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
+        Interlocked.Increment(ref _windowProcCalls);
         if (_siHandle != IntPtr.Zero)
         {
             var ed = new SiGetEventData { msg = msg, wParam = wParam, lParam = lParam };
             var ev = new SiSpwEvent { spwData = new SiSpwData { mData = new int[6], exData = new byte[SI_MAXBUF] } };
             var rc = SiGetEvent(_siHandle, 0, ref ed, ref ev);
+            if (rc == SpwRetVal.SI_IS_EVENT) Interlocked.Increment(ref _siAnyEvents);
             if (rc == SpwRetVal.SI_IS_EVENT && ev.type == (int)SiEventType.SI_MOTION_EVENT)
             {
+                Interlocked.Increment(ref _siMotionEvents);
                 // mData[0..2] = translation X/Y/Z, [3..5] = rotation X/Y/Z, raw range ~[-1500, 1500].
                 const float scale = 1.0f / 350f;
                 _tx = ev.spwData.mData[0] * scale;
