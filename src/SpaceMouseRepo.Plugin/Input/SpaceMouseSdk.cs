@@ -205,9 +205,11 @@ public sealed class SpaceMouseSdk : IDisposable
             };
             _msgThread.SetApartmentState(ApartmentState.STA);
             _msgThread.Start();
-            // Wait briefly for the thread to set _ready or fail.
-            startedSignal.Wait(2000);
-            if (!_ready) _log.LogWarning("siappdll setup did not complete within 2s; SpaceMouse input inactive.");
+            // Wait up to 5s for siappdll to wake up. If it takes longer, the message-pump thread
+            // continues running and IsActive will flip to true once setup finishes; State() reads
+            // are safe at any time since they short-circuit on null sensor.
+            startedSignal.Wait(5000);
+            if (!_ready) _log.LogInfo("siappdll setup not yet complete; will continue initializing in background.");
         }
         catch (Exception e)
         {

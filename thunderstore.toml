@@ -4,7 +4,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "zanewebb"
 name = "SpaceMouseRepo"
-versionNumber = "0.3.6"
+versionNumber = "0.3.7"
 description = "Use a 3Dconnexion SpaceMouse to rotate and finely position held objects."
 websiteUrl = "https://github.com/zanewebb/SpaceMouseRepo"
 containsNsfwContent = false

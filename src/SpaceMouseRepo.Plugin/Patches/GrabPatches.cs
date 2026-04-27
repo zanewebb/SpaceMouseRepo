@@ -46,13 +46,6 @@ public static class GrabPatches
     internal static UQuaternion ToUnity(SNQuaternion q) => new(q.X, q.Y, q.Z, q.W);
 }
 
-/// <summary>
-/// Postfix on PhysGrabber.Update — confirmed firing every frame on the local PhysGrabber per
-/// v0.3.4 logs. v0.3.5 moves the rotation injection here from the never-firing GetRotationInput
-/// postfix. We only mutate when isLocal && grabbed, and we compose our SpaceMouse delta on top
-/// of the vanilla physRotation (and mirror to nextPhysRotation in case downstream reads from
-/// that field).
-/// </summary>
 [HarmonyPatch(typeof(PhysGrabber))]
 public static class UpdatePostfix
 {
@@ -72,11 +65,16 @@ public static class UpdatePostfix
         if (GrabPatches.Disabled) return;
         try
         {
-            if (!__instance.isLocal) return;
+            // Real PhysGrabber fields are non-public in R.E.P.O.'s Assembly-CSharp; our stub had them
+            // public so the IL compiled fine, but runtime accessibility checks reject direct ld/stfld
+            // (FieldAccessException, every frame, ~60 Hz). Traverse goes through reflection and
+            // ignores access modifiers. Cached internally so it's still fast.
+            var trav = Traverse.Create(__instance);
+            if (!trav.Field<bool>("isLocal").Value) return;
 
             var ctrl = GrabPatches.ByHolder.GetValue(__instance, _ => new HeldObjectController(GrabPatches.Cfg));
 
-            if (!__instance.grabbed)
+            if (!trav.Field<bool>("grabbed").Value)
             {
                 ctrl.OnRelease();
                 return;
@@ -93,10 +91,13 @@ public static class UpdatePostfix
             var ourDelta = GrabPatches.ToUnity(ctrl.AccumulatedRotation);
             if (ourDelta == UQuaternion.identity) return;
 
-            var beforePhys = __instance.physRotation;
+            var physRotField = trav.Field<UQuaternion>("physRotation");
+            var nextPhysRotField = trav.Field<UQuaternion>("nextPhysRotation");
+
+            var beforePhys = physRotField.Value;
             var combined = ourDelta * beforePhys;
-            __instance.physRotation = combined;
-            __instance.nextPhysRotation = combined;
+            physRotField.Value = combined;
+            nextPhysRotField.Value = combined;
 
             if (!_diag_loggedFirstWrite)
             {
