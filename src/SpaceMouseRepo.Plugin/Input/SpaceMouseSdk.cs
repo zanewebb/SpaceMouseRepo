@@ -306,6 +306,13 @@ public sealed class SpaceMouseSdk : IDisposable
         }
     }
 
+    // First-N message log: capture raw msg/wParam/lParam values for the first 20 unique-ish
+    // window messages we receive, plus the SiGetEvent return code, so we can see whether the
+    // messages siappdll appears to dispatch are actually 3DxWare WM_USER+offset events or just
+    // generic Windows messages.
+    private int _msgLogged;
+    private const int MaxMsgsToLog = 20;
+
     private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         Interlocked.Increment(ref _windowProcCalls);
@@ -314,6 +321,10 @@ public sealed class SpaceMouseSdk : IDisposable
             var ed = new SiGetEventData { msg = msg, wParam = wParam, lParam = lParam };
             var ev = new SiSpwEvent { spwData = new SiSpwData { mData = new int[6], exData = new byte[SI_MAXBUF] } };
             var rc = SiGetEvent(_siHandle, 0, ref ed, ref ev);
+            if (Interlocked.Increment(ref _msgLogged) <= MaxMsgsToLog)
+            {
+                _log.LogInfo($"[diag-msg] msg=0x{msg:X4} wParam=0x{(long)wParam:X} lParam=0x{(long)lParam:X} SiGetEvent={rc} type={ev.type}");
+            }
             if (rc == SpwRetVal.SI_IS_EVENT) Interlocked.Increment(ref _siAnyEvents);
             if (rc == SpwRetVal.SI_IS_EVENT && ev.type == (int)SiEventType.SI_MOTION_EVENT)
             {
