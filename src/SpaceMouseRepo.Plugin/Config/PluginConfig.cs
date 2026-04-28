@@ -26,8 +26,8 @@ public sealed class PluginConfig
         _maxOffsetCm= cf.Bind("Sensitivity", "MaxLocalOffsetCm",     15f, "Maximum local-offset radius in centimeters.");
         _precScale  = cf.Bind("Sensitivity", "PrecisionScale",      0.2f, "Multiplier applied to all gains when precision mode is active.");
 
-        _tDead      = cf.Bind("Deadzone",    "Translation",        0.05f, "Translation axis deadzone (0-1, fraction of full deflection).");
-        _rDead      = cf.Bind("Deadzone",    "Rotation",           0.05f, "Rotation axis deadzone.");
+        _tDead      = cf.Bind("Deadzone",    "Translation",        0.20f, "Translation axis deadzone (0-1, fraction of full deflection). Bump higher if held objects jitter when the puck is at rest.");
+        _rDead      = cf.Bind("Deadzone",    "Rotation",           0.20f, "Rotation axis deadzone. Bump higher if held objects jitter when the puck is at rest.");
 
         _iTx = cf.Bind("AxisInversion", "InvertTx", false, "");
         _iTy = cf.Bind("AxisInversion", "InvertTy", false, "");
