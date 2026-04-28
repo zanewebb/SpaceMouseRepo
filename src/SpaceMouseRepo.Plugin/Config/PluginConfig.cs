@@ -21,13 +21,33 @@ public sealed class PluginConfig
 
     public PluginConfig(ConfigFile cf)
     {
-        _rotDeg     = cf.Bind("Sensitivity", "RotationDegPerSec",   180f, "Degrees per second of rotation at full puck deflection.");
-        _transCm    = cf.Bind("Sensitivity", "TranslationCmPerSec",  30f, "Centimeters per second of local offset at full puck deflection.");
-        _maxOffsetCm= cf.Bind("Sensitivity", "MaxLocalOffsetCm",     15f, "Maximum local-offset radius in centimeters.");
-        _precScale  = cf.Bind("Sensitivity", "PrecisionScale",      0.2f, "Multiplier applied to all gains when precision mode is active.");
+        // AcceptableValueRange tells r2modman / BepInExConfigManager to render these as sliders
+        // with the right bounds, instead of as raw text fields.
+        _rotDeg = cf.Bind("Sensitivity", "RotationDegPerSec", 180f,
+            new ConfigDescription(
+                "Degrees per second of rotation at full puck deflection.",
+                new AcceptableValueRange<float>(0f, 720f)));
+        _transCm = cf.Bind("Sensitivity", "TranslationCmPerSec", 30f,
+            new ConfigDescription(
+                "Centimeters per second of local offset at full puck deflection.",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _maxOffsetCm = cf.Bind("Sensitivity", "MaxLocalOffsetCm", 15f,
+            new ConfigDescription(
+                "Maximum local-offset radius in centimeters.",
+                new AcceptableValueRange<float>(0f, 50f)));
+        _precScale = cf.Bind("Sensitivity", "PrecisionScale", 0.2f,
+            new ConfigDescription(
+                "Multiplier applied to all gains when precision mode is active.",
+                new AcceptableValueRange<float>(0.05f, 1f)));
 
-        _tDead      = cf.Bind("Deadzone",    "Translation",        0.20f, "Translation axis deadzone (0-1, fraction of full deflection). Bump higher if held objects jitter when the puck is at rest.");
-        _rDead      = cf.Bind("Deadzone",    "Rotation",           0.20f, "Rotation axis deadzone. Bump higher if held objects jitter when the puck is at rest.");
+        _tDead = cf.Bind("Deadzone", "Translation", 0.20f,
+            new ConfigDescription(
+                "Translation axis deadzone (0-1, fraction of full deflection). Bump higher if held objects jitter when the puck is at rest.",
+                new AcceptableValueRange<float>(0f, 0.5f)));
+        _rDead = cf.Bind("Deadzone", "Rotation", 0.20f,
+            new ConfigDescription(
+                "Rotation axis deadzone. Bump higher if held objects jitter when the puck is at rest.",
+                new AcceptableValueRange<float>(0f, 0.5f)));
 
         _iTx = cf.Bind("AxisInversion", "InvertTx", false, "");
         _iTy = cf.Bind("AxisInversion", "InvertTy", false, "");

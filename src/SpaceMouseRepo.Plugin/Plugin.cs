@@ -13,7 +13,7 @@ public sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.zanewebb.spacemouse_repo";
     public const string NAME = "SpaceMouse for R.E.P.O.";
-    public const string VERSION = "0.3.11";
+    public const string VERSION = "0.3.12";
 
     // Heartbeat diagnostic: writes both to BepInEx logger AND directly to a file in the user's
     // BepInEx config dir. If the file gets heartbeats but BepInEx's LogOutput.log doesn't, then
