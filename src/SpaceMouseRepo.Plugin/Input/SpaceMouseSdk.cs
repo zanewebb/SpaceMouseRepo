@@ -114,6 +114,8 @@ public sealed class SpaceMouseSdk : IDisposable
     private static extern IntPtr SiOpen(string appName, int devID, IntPtr mask, int mode, ref SiOpenData data);
     [DllImport(SiAppDll, EntryPoint = "SiGetEvent")]
     private static extern SpwRetVal SiGetEvent(IntPtr hdl, int flags, ref SiGetEventData data, ref SiSpwEvent ev);
+    [DllImport(SiAppDll, EntryPoint = "SiGetEventWinInit")]
+    private static extern void SiGetEventWinInit(ref SiGetEventData data, uint msg, IntPtr wParam, IntPtr lParam);
 
     // Win32 message-only window plumbing
     private delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
@@ -318,7 +320,12 @@ public sealed class SpaceMouseSdk : IDisposable
         Interlocked.Increment(ref _windowProcCalls);
         if (_siHandle != IntPtr.Zero)
         {
-            var ed = new SiGetEventData { msg = msg, wParam = wParam, lParam = lParam };
+            // SiGetEventWinInit is the documented way to populate SiGetEventData. v0.3.9 skipped
+            // it and constructed the struct via field-init, which made every motion event come back
+            // as SI_SKIP_EVENT instead of SI_IS_EVENT. Native init may set hidden state SiGetEvent
+            // checks before classifying the event.
+            var ed = default(SiGetEventData);
+            SiGetEventWinInit(ref ed, msg, wParam, lParam);
             var ev = new SiSpwEvent { spwData = new SiSpwData { mData = new int[6], exData = new byte[SI_MAXBUF] } };
             var rc = SiGetEvent(_siHandle, 0, ref ed, ref ev);
             if (Interlocked.Increment(ref _msgLogged) <= MaxMsgsToLog)
