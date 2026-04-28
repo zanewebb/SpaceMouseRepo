@@ -91,18 +91,19 @@ public static class UpdatePostfix
             var ourDelta = GrabPatches.ToUnity(ctrl.AccumulatedRotation);
             if (ourDelta == UQuaternion.identity) return;
 
-            var physRotField = trav.Field<UQuaternion>("physRotation");
+            // Only write nextPhysRotation (the smoothing target). Writing physRotation directly
+            // fights vanilla's spring/damper interpolation and produces visible oscillation while
+            // the puck is at rest. nextPhysRotation lets vanilla glide the held object into our
+            // target naturally.
             var nextPhysRotField = trav.Field<UQuaternion>("nextPhysRotation");
-
-            var beforePhys = physRotField.Value;
-            var combined = ourDelta * beforePhys;
-            physRotField.Value = combined;
+            var beforeNext = nextPhysRotField.Value;
+            var combined = ourDelta * beforeNext;
             nextPhysRotField.Value = combined;
 
             if (!_diag_loggedFirstWrite)
             {
                 _diag_loggedFirstWrite = true;
-                GrabPatches.Tee($"[diag] First rotation write: before=({beforePhys.x:F3},{beforePhys.y:F3},{beforePhys.z:F3},{beforePhys.w:F3}) delta=({ourDelta.x:F3},{ourDelta.y:F3},{ourDelta.z:F3},{ourDelta.w:F3})");
+                GrabPatches.Tee($"[diag] First rotation write: before=({beforeNext.x:F3},{beforeNext.y:F3},{beforeNext.z:F3},{beforeNext.w:F3}) delta=({ourDelta.x:F3},{ourDelta.y:F3},{ourDelta.z:F3},{ourDelta.w:F3})");
             }
         }
         catch (Exception e) when (e is not ThreadAbortException)
